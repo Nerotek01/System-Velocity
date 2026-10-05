@@ -60,9 +60,7 @@ A single JAR protects your entire proxy layer — filtering Log4Shell payloads, 
 
 A live, fully functional demo network is available so you can evaluate System-Velocity before making any commitment.
 
-```
 IP: mc.hypeland.org
-```
 
 The test server runs the latest stable build with every filter enabled. You can experience the anti-exploit protection, restart scheduler, and log cleaner exactly as they would run on your own network. **No registration, no whitelist — connect and play immediately.**
 
@@ -84,11 +82,11 @@ The Log4Shell filter performs multi-pass analysis: direct JNDI lookup detection,
 ### Automatic Maintenance That Respects Your Players
 The daily restart scheduler uses configurable timezone-aware timing with countdown warnings at configurable lead times and intervals. An in-progress countdown is preserved when the configuration is reloaded, so a reload can never silently cancel an imminent restart. All countdown tasks are tracked and cancelled on shutdown to prevent task leaks. The log cleaner runs asynchronously on startup and on a configurable interval, deleting old logs by retention period and by total size, without ever touching symbolic links.
 
-### Zero Recurring Costs, True Unlimited License
-One payment grants you a permanent license that covers **all proxies you own**. There are no monthly fees, no per-proxy charges, and no hidden costs.
+### Free, Public Release
+The project is no longer sold. The latest compiled build is publicly available, free of charge, under the **Releases** section — covering every proxy you own, with no fees and no hidden costs.
 
 ### Direct Access to the Developer
-When your proxy has an issue at peak time, you do not file a ticket and wait. You speak directly to the person who wrote the code. Support is available **24/7** through Discord or Bale.
+When your proxy has an issue at peak time, you do not file a ticket and wait. You speak directly to the person who wrote the code. However, note that active support is **no longer provided**, as development is currently suspended.
 
 ---
 
@@ -106,9 +104,9 @@ When your proxy has an issue at peak time, you do not file a ticket and wait. Yo
 | **Log cleaner** | Async, size + age based, symlink-safe, NIO.2 | Not available | Not available | Rare |
 | **Self-test system** | Built-in `/systemproxy test` for filter verification | Not available | Not available | Not available |
 | **Configuration** | YAML with malformed-file hardening and safe defaults | Varies | Web dashboard | Varies |
-| **License model** | Permanent, all proxies | Free / recurring | Free (with limits) | Often per-proxy or recurring |
+| **License model** | Free, public release | Free / recurring | Free (with limits) | Often per-proxy or recurring |
 
-**Key takeaway:** System-Velocity is the only plugin that combines multi-layer exploit filtering, automated maintenance, and log management in a single JAR for your Velocity proxy — with one purchase that covers every proxy you run.
+**Key takeaway:** System-Velocity is the only plugin that combines multi-layer exploit filtering, automated maintenance, and log management in a single JAR for your Velocity proxy — available now as a free public release.
 
 ---
 
@@ -300,9 +298,9 @@ A: System-Velocity is built exclusively for Velocity 3.3.0+ (Java 21). It is not
 A: Yes. System-Velocity operates at the proxy layer, filtering chat before it reaches backend servers. It complements any backend Spigot anticheat.
 
 **Q: How does the license work?**
-A: One payment of **€5.00** grants you a permanent license that covers every proxy you own. There are no recurring fees, no per-proxy charges, and no hidden costs.
+A: No license is sold. The project has been suspended and the latest build is available free of charge under the **Releases** section.
 
-**Q: Can I test the plugin before buying?**
+**Q: Can I test the plugin?**
 A: Yes. Connect to `mc.hypeland.org` to experience the full plugin on a live network.
 
 ### Technical Questions
@@ -322,36 +320,33 @@ A: The `/systemproxy test` command runs a suite of test cases against the Log4Sh
 ### Support
 
 **Q: How do I get help if something breaks?**
-A: You have 24/7 direct access to the developer via Discord (`Nerotek01`) or Bale (`Nerotek`). There are no tickets, no forums, and no canned replies.
+A: Active support is **no longer provided**, as development is suspended. You may still contact the developer, but no official assistance is guaranteed.
 
 **Q: Are updates free?**
-A: All updates for the current major version are included with your permanent license.
+A: No further updates are planned. The current build is the final public release.
 
 ---
 
 ## Support & Purchasing
 
-**System-Velocity** is a premium plugin sold exclusively by the developer.
+**This project is no longer sold.** As stated in the Project Notice above, development has been suspended indefinitely and commercial distribution has been discontinued.
 
-### How to Purchase
+### How to Get the Plugin
+The latest compiled **JAR** is publicly available, free of charge, under the **Releases** section of this repository. Download it, drop it into your proxy's `plugins/` folder, and use it as-is.
+
+### No Purchase, No License Fee
+There is no price, no license key, no loader, and no payment of any kind. The project is released publicly for anyone to use.
+
+### Sponsorship & Resumption
+If you are interested in **sponsoring this project** or joining a **development team** to resume it, please contact the developer directly. Sponsorship is the only path toward continued development.
+
+### Contacts
 - **Discord:** `Nerotek01`
 - **Bale (Iranian users):** `Nerotek`
-- **Price:** **€5.00** — one-time payment, permanent license.
+- **Demo server:** `mc.hypeland.org`
 
-### License
-**Permanent, all-proxies license.** Your purchase covers every proxy you own. There are no recurring fees, no per-proxy charges, and no hidden costs.
-
-### What You Receive
-- The complete System-Velocity plugin JAR.
-- All security filters, fully integrated and ready to use.
-- Daily restart scheduler with timezone-aware countdown.
-- Log cleaner with async size and age management.
-- Built-in self-test system for filter verification.
-- Free updates for the current major version.
-- **24/7 priority support** via Discord or Bale.
-
-### Support Promise
-When an issue arises on your live network, you do not file tickets and hope for a reply. You speak directly with the developer — the person who wrote every line of code. Your uptime is our reputation.
+### Support
+Active support is **no longer provided**, as development is suspended. The community may still discuss the plugin, but no official assistance is guaranteed.
 
 ---
 
